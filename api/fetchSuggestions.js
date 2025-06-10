@@ -1,27 +1,22 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Vercelの環境変数からAPIキーを安全に読み込む
 const API_KEY = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenerativeAI({ apiKey: API_KEY });
 
-// Vercelがこの関数をAPIとして実行してくれる
 module.exports = async (req, res) => {
-  // アプリからのリクエストがPOSTでない場合はエラー
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   try {
-    // アプリから送られてくるユーザー情報を取得
     const userInput = req.body;
-
     const skinConcernsString = userInput.skinConcerns.join('、');
 
     const prompt = `
       あなたは美容とウェルネスの専門コンサルタントAI「SaloaMe」です。
       以下のユーザープロフィールに基づいて、具体的で魅力的な提案を行ってください：
       - 年齢層: <span class="math-inline">\{userInput\.age\}
-      - 現在の肌状態・お悩み: "{skinConcernsString}"
+- 現在の肌状態・お悩み: "{skinConcernsString}"
 - 希望する状態や目的: "userInput.desiredOutcome"−現在の地域/都市:"{userInput.area}"
 
       提供してほしい情報：
@@ -38,12 +33,14 @@ module.exports = async (req, res) => {
     `;
     
     // Gemini APIを呼び出す
-    const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash-preview-0514", // モデル名を指定
-        contents: prompt,
-    });
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
+    const response = result.response;
     
-    let jsonStr = (response.text || '').trim();
+    // ★★★ ここが修正点です ★★★
+    const text = response.text(); 
+    
+    let jsonStr = text.trim();
     const fenceRegex = /```(?:json)?\s*\n?(.*?)\n?\s*```/s;
     const match = jsonStr.match(fenceRegex);
 
@@ -53,12 +50,10 @@ module.exports = async (req, res) => {
 
     const parsedData = JSON.parse(jsonStr);
 
-    // 成功したら、解析したデータをアプリに返す
     res.status(200).json(parsedData);
 
   } catch (error) {
-    console.error('Error fetching suggestions:', error);
-    // エラーが発生したら、エラー情報をアプリに返す
-    res.status(500).json({ error: 'Failed to fetch suggestions from Gemini' });
+    console.error('Vercel Function Error:', error);
+    res.status(500).json({ error: 'AIからの応答の処理中にサーバーでエラーが発生しました。', details: error.message });
   }
 };
