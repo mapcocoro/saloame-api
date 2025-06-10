@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Vercelの環境変数からAPIキーを安全に読み込む
 const API_KEY = process.env.GEMINI_API_KEY;

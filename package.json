@@ -11,6 +11,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@google/genai": "^1.4.0"
+    "@google/generative-ai": "^0.24.1"
   }
 }
