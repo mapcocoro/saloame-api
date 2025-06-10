@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenerativeAI({ apiKey: API_KEY });
+const ai = new GoogleGenerativeAI({ apiKey: API_KEY, project: 'salon-navi', location: 'asia-northeast1' });
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
