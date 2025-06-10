@@ -1,7 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 
-const API_KEY = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenerativeAI({ apiKey: API_KEY, project: 'salon-navi', location: 'asia-northeast1' });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // キーの名前が変わります
+});
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -9,24 +10,32 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // アプリから「これまでの会話履歴」と「新しいメッセージ」を受け取る
     const { history, message } = req.body;
 
-    // Geminiのチャットモデルを開始
-    const chat = ai.getGenerativeModel({ model: "gemini-1.5-flash-preview-0514" }).startChat({
-        history: history,
+    const systemMessage = {
+      role: "system",
+      content: "あなたは美容とウェルネスの専門AIアシスタント「SaloaMe」（サロアミー）です。ユーザーの美容に関するあらゆる悩みや質問に対して、親しみやすく、共感的に、そして絵文字（例：✨💖😊😉🌿）を効果的に使って応答してください。"
+    };
+
+    const openAIHistory = history.map(msg => ({
+      role: msg.role === 'model' ? 'assistant' : 'user',
+      content: msg.parts[0].text
+    }));
+
+    const userMessage = { role: "user", content: message };
+    const messages = [systemMessage, ...openAIHistory, userMessage];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: messages,
     });
 
-    // 新しいメッセージを送信して、結果を受け取る
-    const result = await chat.sendMessage(message);
-    const response = result.response;
-    const text = response.text();
-
-    // AIからの返信テキストをアプリに返す
+    const text = response.choices[0].message.content;
+    
     res.status(200).json({ text: text });
 
   } catch (error) {
-    console.error('Chat API error:', error);
-    res.status(500).json({ error: 'Failed to get chat response from Gemini' });
+    console.error('OpenAI Chat API Error:', error);
+    res.status(500).json({ error: 'Failed to get chat response from OpenAI', details: error.message });
   }
 };

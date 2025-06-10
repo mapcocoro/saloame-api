@@ -1,7 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 
-const API_KEY = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenerativeAI({ apiKey: API_KEY, project: 'salon-navi', location: 'asia-northeast1' });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // キーの名前が変わります
+});
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -12,47 +13,32 @@ module.exports = async (req, res) => {
     const userInput = req.body;
     const skinConcernsString = userInput.skinConcerns.join('、');
 
-    // ★★★ このプロンプトの文字列を修正しました ★★★
-    const prompt = `
-      あなたは美容とウェルネスの専門コンサルタントAI「SaloaMe」です。
-      以下のユーザープロフィールに基づいて、具体的で魅力的な提案を行ってください：
-      // 私が提供した、修正済みの正しいコード
+    const systemPrompt = `あなたは美容とウェルネスの専門コンサルタントAI「SaloaMe」です。ユーザーから提供された情報に基づいて、提案をJSON形式で返してください。JSONオブジェクトには "treatments" と "facilities" という2つのキーを含めてください。"treatments"はオブジェクトの配列で、各オブジェクトは "name" (施術名) と "description" (60-100文字の説明) を含みます。"facilities"もオブジェクトの配列で、各オブジェクトは "name" (施設名) と "servicesOffered" (提供していそうな施術の配列) を含みます。説明や他のテキストは含めず、JSONオブジェクトだけを返してください。`;
+
+    const userPrompt = `
+      以下のユーザープロフィールに基づいて、提案を行ってください：
       - 年齢層: ${userInput.age}
       - 現在の肌状態・お悩み: "${skinConcernsString}"
       - 希望する状態や目的: "${userInput.desiredOutcome}"
       - 現在の地域/都市: "${userInput.area}"
-      提供してほしい情報：
-      1.  **効果的な施術メニュー (3～5つ):** 施術名("name")と、60～100文字程度の説明文("description")を提案。
-      2.  **おすすめの美容皮膚科・サロン (2～3つ):** 「${userInput.area}」に実在する可能性の高い施設名("name")と、そこで提供していそうな施術名の配列("servicesOffered")を提案。住所や電話番号は含めない。
-
-      応答全体を、以下の形式の単一のJSONオブジェクトとして厳密に構成してください：
-      \`\`\`json
-      {
-        "treatments": [],
-        "facilities": []
-      }
-      \`\`\`
     `;
-    
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
-    
-    let jsonStr = text.trim();
-    const fenceRegex = /```(?:json)?\s*\n?(.*?)\n?\s*```/s;
-    const match = jsonStr.match(fenceRegex);
 
-    if (match && match[1]) {
-      jsonStr = match[1].trim();
-    }
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" },
+    });
 
+    const jsonStr = response.choices[0].message.content;
     const parsedData = JSON.parse(jsonStr);
-
+    
     res.status(200).json(parsedData);
 
   } catch (error) {
-    console.error('Vercel Function Error:', error);
-    res.status(500).json({ error: 'AIからの応答の処理中にサーバーでエラーが発生しました。', details: error.message });
+    console.error('OpenAI API Error:', error);
+    res.status(500).json({ error: 'Failed to fetch suggestions from OpenAI', details: error.message });
   }
 };
